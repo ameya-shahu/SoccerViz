@@ -1,0 +1,188 @@
+/* General Layout */
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+h1 {
+  text-align: center;
+  margin: 20px;
+}
+
+.controls {
+  margin: 10px;
+}
+
+/* Container for all the charts */
+.chart-container {
+  display: flex;
+  flex-wrap: wrap;
+  /* This allows the charts to wrap in case of small screens */
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+#chart4-container {
+  display: flex;
+  /* Use flexbox for layout */
+  justify-content: space-between;
+  /* Space out text and chart */
+  align-items: flex-start;
+  /* Align items to the top of the container */
+  width: 100%;
+  /* Full width */
+  padding: 20px;
+  /* Optional padding for spacing */
+  box-sizing: border-box;
+  /* Ensure padding doesn't affect width */
+}
+
+/* Player stats section for chart 4 */
+#playerStats4 {
+  flex: 1;
+  /* Take up as much space as needed */
+  text-align: left;
+  /* Align text to the left */
+  padding-right: 20px;
+  /* Add space between text and chart */
+  margin-right: auto;
+  margin-bottom: 15px;
+  font-size: 14px;
+  /* Ensure it stays on the left side of the container */
+}
+
+.chart4-svg {
+  flex-shrink: 0;
+  /* Prevent shrinking */
+  margin-left: auto;
+  /* Align the chart to the right */
+  margin-right: auto;
+  /* Center the chart horizontally */
+  display: block;
+  /* Ensures the chart is treated as a block element */
+  width: 100%;
+  /* Optional: ensures it takes full width of container if needed */
+  max-width: 350px;
+  /* Optional: limits the size of the chart */
+  height: auto;
+  /* Allows the height to scale proportionally */
+}
+
+/* Each chart wrapper */
+/* For centering the SVG */
+.chart-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* Center the chart vertically and horizontally */
+  width: 30%;
+  /* Keep this width or adjust as necessary */
+  min-width: 300px;
+  box-sizing: border-box;
+  padding: 20px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+}
+
+svg {
+  /* margin: 20px 0; */
+  /* width: 200%; */
+  height: auto;
+  /* Allow SVG to scale proportionally */
+  max-width: 300px;
+  /* Adjust this as per your needs */
+  max-height: 300px;
+  display: block;
+}
+
+/* Weight Controls Container */
+#weightControls1,
+#weightControls2,
+#weightControls3 {
+  width: 100%;
+  /* Ensure it takes the full width available */
+  margin-top: 20px;
+  overflow: hidden;
+  /* Prevent overflowing content */
+}
+
+/* Player Stats Styling */
+#playerStats {
+  margin-bottom: 15px;
+  font-size: 14px;
+}
+
+/* For the weight buttons */
+.weight-button-container {
+  display: flex;
+  justify-content: space-evenly;
+  margin-top: 10px;
+  flex-wrap: wrap;
+  /* Allow buttons to wrap if necessary */
+}
+
+.weight-button {
+  padding: 5px 10px;
+  margin: 5px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.reset-button {
+  margin-top: 15px;
+  padding: 8px 15px;
+  background-color: #f0ad4e;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+/* Responsive design for smaller screens */
+@media (max-width: 768px) {
+  .chart-container {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .chart-wrapper {
+    width: 80%;
+    /* Make the charts take up 80% of the container on smaller screens */
+  }
+}
+
+#bar-chart-container {
+  width: 100%;
+  text-align: center;
+  margin: 20px auto;
+  height: 1000px;
+  overflow: visible;
+}
+
+#barChart {
+  margin: 0 auto;
+  display: block;
+  height: 800px;
+  overflow: visible;
+}
+
+#tooltip {
+  font-size: 12px;
+  color: black;
+  background-color: white;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 5px;
+  pointer-events: none; /* Ensure the tooltip doesn't block interactions */
+  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2);
+  display: none; /* Initially hidden */
+  position: absolute; /* Positioned relative to the mouse cursor */
+}
