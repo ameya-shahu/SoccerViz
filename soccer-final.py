@@ -1,22 +1,30 @@
 import json
 import math
 import numpy as np
-import matplotlib.pyplot as plt
 import os
 import csv
+import requests
+
 # Function to load data
-def load_data(match_id):
-    events_path = f"open-data/data/events/{match_id}.json"
-    threesixty_path = f"open-data/data/three-sixty/{match_id}.json"
-    
+def load_data(events_url, threesixty_url):
     try:
-        with open(events_path, 'r', encoding='utf-8') as events_file:
-            events = json.load(events_file)
-        with open(threesixty_path, 'r', encoding='utf-8') as threesixty_file:
-            threesixty = json.load(threesixty_file)
+        # Fetch events data from the URL
+        events_response = requests.get(events_url)
+        events_response.raise_for_status()  # Raise an exception for HTTP errors
+        events = events_response.json()
+        
+        # Fetch three-sixty data from the URL
+        threesixty_response = requests.get(threesixty_url)
+        threesixty_response.raise_for_status()
+        threesixty = threesixty_response.json()
+        
         return events, threesixty
-    except Exception as e:
-        print(f"Error loading data: {e}")
+    
+    except requests.exceptions.RequestException as e:
+        #print(f"Error fetching data from URL: {e}")
+        return None, None
+    except json.JSONDecodeError as e:
+        #print(f"Error decoding JSON: {e}")
         return None, None
 
 # Function to calculate overall pressure by player
@@ -25,10 +33,9 @@ def calculate_overall_pressure_by_player(events, threesixty, event_type):
     Calculate the overall pressure for each player during 'Pass' events.
     """
     player_pressure = {}
-
+    eventwise_pressure_rating = []
     # Filter for pass events
     pass_events = [event for event in events if event['type']['name'] == event_type]
-    eventwise_rating = []
     # Process each pass event
     for event in pass_events:
         player_id = event.get("player", {}).get("id") 
@@ -55,7 +62,7 @@ def calculate_overall_pressure_by_player(events, threesixty, event_type):
                     receiver_x, receiver_y = receiver_location
                 else:
                     # Handle the case where receiver_location is not in the expected format
-                    print(f"Warning: Invalid receiver_location format for event {event.get('id')}: {receiver_location}")
+                    #print(f"Warning: Invalid receiver_location format for event {event.get('id')}: {receiver_location}")
                     receiver_x, receiver_y,receiver_z = receiver_location  # Or handle it however you prefer
         elif event_type == 'Duel':
                 receiver_location = player_location
@@ -117,26 +124,29 @@ def calculate_overall_pressure_by_player(events, threesixty, event_type):
                 'total_pressure': total_pressure
             }
 
-        eventwise_rating.append({
+        eventwise_pressure_rating.append({
             "event_id": event["id"],
-            "pressure_rating": total_pressure
+            "pressure_rating": total_pressure,
+            'player_id': player_id
         })
         
 
 
         # player_pressure[player_id] += total_pressure
-    print("eventwise rating ----")
-    print(eventwise_rating)
-    return player_pressure
+    #print("eventwise rating ----")
+    #print(eventwise_rating)
+    return player_pressure, eventwise_pressure_rating
+
 def calculate_pressure_change_by_player(events, threesixty, event_type):
     """
     Calculate the change in pressure for each player during 'Pass' events.
     The change in pressure is the difference between the pressure on the passer and the receiver.
     """
     player_pressure_change = {}
+    eventwise_pressure_change = []
 
     # Get overall pressure for each player first
-    player_pressure = calculate_overall_pressure_by_player(events, threesixty, event_type)
+    player_pressure, _ = calculate_overall_pressure_by_player(events, threesixty, event_type)
     pass_events = [event for event in events if event['type']['name'] == event_type]
     
     # Process each pass event
@@ -191,7 +201,13 @@ def calculate_pressure_change_by_player(events, threesixty, event_type):
                 'rescaled_pressure_change': rescaled_pressure_change
             }
         
-    return player_pressure_change
+        eventwise_pressure_change.append({
+            'player_id': player_id,
+            "event_id": event["id"],
+            'rescaled_pressure_change': rescaled_pressure_change
+        })
+        
+    return player_pressure_change, eventwise_pressure_change
 
 def find_elbow_point(pressures):
     """
@@ -231,9 +247,9 @@ def scale_value(value, elbow_point, max_value):
         scaled_value = (value / elbow_point) * 9
     else:
         # Scale value between 9 to 10
-        print("Higher than elbow ---", value)
+        # #print("Higher than elbow ---", value)
         scaled_value = 9 + ((value - elbow_point) / (max_value - elbow_point))
-        print("Higher than elbow scaled ---", scaled_value)
+        # #print("Higher than elbow scaled ---", scaled_value)
     
     return scaled_value
 
@@ -247,9 +263,9 @@ def rescale_pressures(player_pressures):
     # Find the elbow point
     elbow_point = find_elbow_point(pressures)
     if elbow_point == 0:
-        print("Warning: Elbow point is zero. Using a default value instead.")
+        #print("Warning: Elbow point is zero. Using a default value instead.")
         elbow_point = 1  # You can adjust this value to a sensible default based on your use case.
-    print(f"Elbow point pressure value: {elbow_point}")
+    #print(f"Elbow point pressure value: {elbow_point}")
 
     # Rescale pressures based on the elbow point
     rescaled_pressures = {}
@@ -658,7 +674,9 @@ def calculate_pass_success(pass_length, packing_value, area_rating, pressure_sum
 
 
 # FUNCTION TO CALCULATE ALL METRICS PLAYER-WISE
-def calculate_metrics_for_player(player_data, event_data, player_positions_data):
+def calculate_metrics_for_player(player_data, event_data, player_positions_data, player_id):
+
+    eventwise_area_score = []
     for pass_event in player_data['passes']:
         # Calculate packing
         player_positions = next((event['freeze_frame'] for event in player_positions_data 
@@ -672,6 +690,13 @@ def calculate_metrics_for_player(player_data, event_data, player_positions_data)
 
         if area_score > 0:
             player_data['area_ratings'].append(area_score)
+
+            eventwise_area_score.append({
+                "event_id": pass_event["id"],
+                "area_score": area_score,
+                'player_id': player_id
+            })
+
             
     # Calculate duel area ratings
     for duel_event in player_data['duels']:
@@ -679,6 +704,12 @@ def calculate_metrics_for_player(player_data, event_data, player_positions_data)
 
         if area_score > 0:
             player_data['duel_area_ratings'].append(area_score)
+
+            eventwise_area_score.append({
+                "event_id": pass_event["id"],
+                "area_score": area_score,
+                'player_id': player_id
+            })
 
     # Add shot accuracy calculations
     for shot_event in player_data['shots']:
@@ -756,7 +787,7 @@ def scale_packing():
     overall_packing = []
     for player_id, player_data in player_stats[match_id].items():
         overall_packing += player_data["packing_values"]
-    print(overall_packing)
+    #print(overall_packing)
     elbow_value = find_elbow_point(overall_packing)
     max_packing_value = max(overall_packing)
     
@@ -786,115 +817,125 @@ def scale_packing():
         player_data['avg_packing'] = np.mean(player_data['packing_values']) if player_data['packing_values'] else 0
 
 
-# Main script
-# match_id = "3788741"
-match_id = "3893792"
-events, threesixty = load_data(match_id)
-if events and threesixty:
-    player_pressure_pass = calculate_overall_pressure_by_player(events, threesixty,'Pass')
-    player_pressures_pass = {player['player_id']: player['total_pressure'] for player in player_pressure_pass.values()}
-    rescaled_pressures_pass = rescale_pressures(player_pressures_pass)
-    player_pressure_duel = calculate_overall_pressure_by_player(events, threesixty,'Duel')
-    player_pressures_duels = {player['player_id']: player['total_pressure'] for player in player_pressure_duel.values()}
-    rescaled_pressures_duels = rescale_pressures(player_pressures_duels)
-
-    player_pressure_shot = calculate_overall_pressure_by_player(events, threesixty,'Shot')
-    player_pressures_shots = {player['player_id']: player['total_pressure'] for player in player_pressure_shot.values()}
-    rescaled_pressures_shots = rescale_pressures(player_pressures_shots)
-
-    all_match_stats = {}
-    # print("Total Pressures :", player_pressure)
-    # print("Rescaled Pressures (0-10 scale):", rescaled_pressures)
-    rescaled_pressure_with_player_name_pass = {}
-    rescaled_pressure_with_player_name_duel = {}
-    rescaled_pressure_with_player_name_shot = {}
-
-    # Iterate through the Total Pressures to match player names with rescaled pressures
-    for player_name, player_data in player_pressure_pass.items():
-        player_id = player_data['player_id']
-        if player_id in rescaled_pressures_pass:
-            # Add player name along with the corresponding rescaled pressure
-            rescaled_pressure_with_player_name_pass[player_name] = {
-                'player_id': player_id,
-                'rescaled_pressure': round(rescaled_pressures_pass[player_id], 2)
-            }
-    for player_name, player_data in player_pressure_duel.items():
-        player_id = player_data['player_id']
-        if player_id in rescaled_pressures_duels:
-            # Add player name along with the corresponding rescaled pressure
-            rescaled_pressure_with_player_name_duel[player_name] = {
-                'player_id': player_id,
-                'rescaled_pressure': round(rescaled_pressures_duels[player_id], 2)
-            }
-    for player_name, player_data in player_pressure_shot.items():
-        player_id = player_data['player_id']
-        if player_id in rescaled_pressures_shots:
-            # Add player name along with the corresponding rescaled pressure
-            rescaled_pressure_with_player_name_shot[player_name] = {
-                'player_id': player_id,
-                'rescaled_pressure': round(rescaled_pressures_shots[player_id], 2)
-            }
-    overplayed_pressure = calculate_pressure_change_by_player(events,threesixty,'Pass')
-    # print(rescaled_pressure_with_player_name)
+if __name__ == "__main__":
+    # Main script
+    # match_id = "3788741"
+    match_id = "3857254"
+    competition_id = "43"
+    seasor_id = "106"
     
-        
-        # Organize data and get event_data once
-    player_stats, event_data = organize_data_by_match_and_player(match_id, events, threesixty)
-        
-        # Calculate metrics for each player
-    match_stats = {}
-    for player_id, player_data in player_stats[match_id].items():
-        calculate_metrics_for_player(player_data, event_data, threesixty)
-    
-    scale_area_rating()
-    scale_packing()
 
-    for player_id, player_data in player_stats[match_id].items():
-        player_name = player_data['name']
-        rescaled_pressure_pass = rescaled_pressure_with_player_name_pass.get(player_name, {}).get('rescaled_pressure', 0)
-        rescaled_pressure_duel = rescaled_pressure_with_player_name_duel.get(player_name, {}).get('rescaled_pressure', 0)
-        rescaled_pressure_shot = rescaled_pressure_with_player_name_shot.get(player_name, {}).get('rescaled_pressure', 0)
-        expected_pass_success = calculate_pass_success(player_data['avg_passes_until_shot_pass'], player_data['avg_packing'],
-                                                       player_data['avg_area_rating'], rescaled_pressure_pass, 
-                           -0.0450, -0.1856, -0.9534, -0.1486)
-        expected_duel_success = calculate_duel_success_probability(rescaled_pressure_duel, player_data['avg_duel_area_rating'])
-            # Store individual stats in a more structured way
-        match_stats[player_data['name']] = {
-                'player_id': player_id,
-                'avg_packing': player_data['avg_packing'],
-                'avg_passes_until_shot_pass': player_data['avg_passes_until_shot_pass'],
-                'avg_passes_until_shot_duel': player_data['avg_passes_until_shot_duel'],
-                'avg_area_rating': player_data['avg_area_rating'],
-                'total_passes': len(player_data['passes']),
-                'total_duels': len(player_data['duels']),
-                'total_shots': len(player_data['shots']),
-                'avg_duel_area_rating': player_data['avg_duel_area_rating'],
-                'avg_shot_accuracy': player_data['avg_shot_accuracy'],
-                'avg_pressure_pass': rescaled_pressure_pass,
-                'overplayed_pressure': overplayed_pressure.get(player_name,{}).get('rescaled_pressure_change',0),
-                'avg_pressure_duel': rescaled_pressure_duel,
-                'avg_pressure_shot': rescaled_pressure_shot,
-                'expected_pass_success': expected_pass_success,
-                'expected_duel_success' : expected_duel_success,
-                'expected_goal_success': player_data['avg_expected_goals']
-            }
-        
-    # print(match_stats)
-    output_directory = "Data"
-    os.makedirs(output_directory, exist_ok=True)
-    output_file_path = os.path.join(output_directory, f"match_stats_{match_id}.csv")
-    with open(output_file_path, mode="w", newline="", encoding='utf-8') as csv_file:
-        writer = csv.writer(csv_file)
-        # Write the header (keys of the first dictionary entry)
-        headers = ["player_name"] + list(next(iter(match_stats.values())).keys())
-        writer.writerow(headers)
-        
-        # Write the rows (player name and their stats)
-        for player_name, stats in match_stats.items():
-            row = [player_name] + list(stats.values())
-            writer.writerow(row)
+    events, threesixty = load_data(
+        events_url=f'https://raw.githubusercontent.com/ameya-shahu/dv-project-filtered-data/refs/heads/main/competitions/{competition_id}/{seasor_id}/matches/{match_id}.json',
+        threesixty_url=f'https://raw.githubusercontent.com/ameya-shahu/dv-project-filtered-data/refs/heads/main/competitions/{competition_id}/{seasor_id}/three-sixty/{match_id}.json'
+    )
 
-    print(f"File saved at: {output_file_path}")
-    print(f'length of stats:{len(match_stats)}')
-    print("---")
+    if events and threesixty:
+        player_pressure_pass, eventwise_pressure_rating = calculate_overall_pressure_by_player(events, threesixty,'Pass')
+        player_pressures_pass = {player['player_id']: player['total_pressure'] for player in player_pressure_pass.values()}
+        rescaled_pressures_pass = rescale_pressures(player_pressures_pass)
+
+        player_pressure_duel, eventwise_duel_pressure_rating = calculate_overall_pressure_by_player(events, threesixty,'Duel')
+        player_pressures_duels = {player['player_id']: player['total_pressure'] for player in player_pressure_duel.values()}
+        rescaled_pressures_duels = rescale_pressures(player_pressures_duels)
+
+        player_pressure_shot, eventwise_shot_pressure_rating = calculate_overall_pressure_by_player(events, threesixty,'Shot')
+        player_pressures_shots = {player['player_id']: player['total_pressure'] for player in player_pressure_shot.values()}
+        rescaled_pressures_shots = rescale_pressures(player_pressures_shots)
+
+        all_match_stats = {}
+        # #print("Total Pressures :", player_pressure)
+        # #print("Rescaled Pressures (0-10 scale):", rescaled_pressures)
+        rescaled_pressure_with_player_name_pass = {}
+        rescaled_pressure_with_player_name_duel = {}
+        rescaled_pressure_with_player_name_shot = {}
+
+        # Iterate through the Total Pressures to match player names with rescaled pressures
+        for player_name, player_data in player_pressure_pass.items():
+            player_id = player_data['player_id']
+            if player_id in rescaled_pressures_pass:
+                # Add player name along with the corresponding rescaled pressure
+                rescaled_pressure_with_player_name_pass[player_name] = {
+                    'player_id': player_id,
+                    'rescaled_pressure': round(rescaled_pressures_pass[player_id], 2)
+                }
+        for player_name, player_data in player_pressure_duel.items():
+            player_id = player_data['player_id']
+            if player_id in rescaled_pressures_duels:
+                # Add player name along with the corresponding rescaled pressure
+                rescaled_pressure_with_player_name_duel[player_name] = {
+                    'player_id': player_id,
+                    'rescaled_pressure': round(rescaled_pressures_duels[player_id], 2)
+                }
+        for player_name, player_data in player_pressure_shot.items():
+            player_id = player_data['player_id']
+            if player_id in rescaled_pressures_shots:
+                # Add player name along with the corresponding rescaled pressure
+                rescaled_pressure_with_player_name_shot[player_name] = {
+                    'player_id': player_id,
+                    'rescaled_pressure': round(rescaled_pressures_shots[player_id], 2)
+                }
+        overplayed_pressure, eventwise_pressure_change = calculate_pressure_change_by_player(events,threesixty,'Pass')
+        # #print(rescaled_pressure_with_player_name)
+        
+            
+            # Organize data and get event_data once
+        player_stats, event_data = organize_data_by_match_and_player(match_id, events, threesixty)
+            
+            # Calculate metrics for each player
+        match_stats = {}
+        for player_id, player_data in player_stats[match_id].items():
+            calculate_metrics_for_player(player_data, event_data, threesixty, player_id)
+        
+        scale_area_rating()
+        scale_packing()
+
+        for player_id, player_data in player_stats[match_id].items():
+            player_name = player_data['name']
+            rescaled_pressure_pass = rescaled_pressure_with_player_name_pass.get(player_name, {}).get('rescaled_pressure', 0)
+            rescaled_pressure_duel = rescaled_pressure_with_player_name_duel.get(player_name, {}).get('rescaled_pressure', 0)
+            rescaled_pressure_shot = rescaled_pressure_with_player_name_shot.get(player_name, {}).get('rescaled_pressure', 0)
+            expected_pass_success = calculate_pass_success(player_data['avg_passes_until_shot_pass'], player_data['avg_packing'],
+                                                        player_data['avg_area_rating'], rescaled_pressure_pass, 
+                            -0.0450, -0.1856, -0.9534, -0.1486)
+            expected_duel_success = calculate_duel_success_probability(rescaled_pressure_duel, player_data['avg_duel_area_rating'])
+                # Store individual stats in a more structured way
+            match_stats[player_data['name']] = {
+                    'player_id': player_id,
+                    'avg_packing': player_data['avg_packing'],
+                    'avg_passes_until_shot_pass': player_data['avg_passes_until_shot_pass'],
+                    'avg_passes_until_shot_duel': player_data['avg_passes_until_shot_duel'],
+                    'avg_area_rating': player_data['avg_area_rating'],
+                    'total_passes': len(player_data['passes']),
+                    'total_duels': len(player_data['duels']),
+                    'total_shots': len(player_data['shots']),
+                    'avg_duel_area_rating': player_data['avg_duel_area_rating'],
+                    'avg_shot_accuracy': player_data['avg_shot_accuracy'],
+                    'avg_pressure_pass': rescaled_pressure_pass,
+                    'overplayed_pressure': overplayed_pressure.get(player_name,{}).get('rescaled_pressure_change',0),
+                    'avg_pressure_duel': rescaled_pressure_duel,
+                    'avg_pressure_shot': rescaled_pressure_shot,
+                    'expected_pass_success': expected_pass_success,
+                    'expected_duel_success' : expected_duel_success,
+                    'expected_goal_success': player_data['avg_expected_goals']
+                }
+        
+        # #print(match_stats)
+        output_directory = "Data"
+        os.makedirs(output_directory, exist_ok=True)
+        output_file_path = os.path.join(output_directory, f"match_stats_{match_id}.csv")
+        with open(output_file_path, mode="w", newline="", encoding='utf-8') as csv_file:
+            writer = csv.writer(csv_file)
+            # Write the header (keys of the first dictionary entry)
+            headers = ["player_name"] + list(next(iter(match_stats.values())).keys())
+            writer.writerow(headers)
+            
+            # Write the rows (player name and their stats)
+            for player_name, stats in match_stats.items():
+                row = [player_name] + list(stats.values())
+                writer.writerow(row)
+
+        print(f"File saved at: {output_file_path}")
+        print(f'length of stats:{len(match_stats)}')
+        #print("---")
 
