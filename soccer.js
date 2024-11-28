@@ -458,68 +458,106 @@ function calculateOverallRating(data) {
 }
 
 function drawBarChart(playerScores, selectedPlayerName) {
-  const barChart = d3.select("#barChart");
-  barChart.selectAll("*").remove(); // Clear existing chart
+    const barChart = d3.select("#barChart");
+    barChart.selectAll("*").remove(); // Clear existing chart
 
-  // Sort the playerScores array by score in ascending order
-  playerScores.sort((a, b) => a.score - b.score);
+    // Sort the playerScores array by score in ascending order
+    playerScores.sort((a, b) => a.score - b.score);
 
-  const width = 600;
-  const height = 400;
-  const margin = { top: 20, right: 30, bottom: 50, left: 50 };
-  const chartWidth = width - margin.left - margin.right;
-  const chartHeight = height - margin.top - margin.bottom;
+    const width = 1000;
+    const height = 600;
+    const margin = { top: 20, right: 30, bottom: 50, left: 50 };
+    const chartWidth = width - margin.left - margin.right;
+    const chartHeight = height - margin.top - margin.bottom;
 
-  const svg = barChart.append("g")
-      .attr("transform", `translate(${margin.left},${margin.top})`);
-  
-  // Create tooltip reference
-  const tooltip = d3.select("#tooltip");
-  // Scales
-  const xScale = d3.scaleBand()
-      .domain(playerScores.map(d => d.name))
-      .range([0, chartWidth])
-      .padding(0.1);
+    const svg = barChart.append("g")
+        .attr("transform", `translate(${margin.left - 280},${margin.top - 200})`);
 
-  const yScale = d3.scaleLinear()
-      .domain([0, d3.max(playerScores, d => d.score)]) // Scale based on max score
-      .range([chartHeight, 0]);
+    // Create tooltip reference
+    const tooltip = d3.select("#tooltip");
 
-  // Axes
-  svg.append("g")
-      .attr("transform", `translate(0,${chartHeight})`)
-      .call(d3.axisBottom(xScale))
-      .selectAll("text")
-      .attr("transform", "rotate(-45)")
-      .style("text-anchor", "end");
+    // Scales
+    const xScale = d3.scaleBand()
+        .domain(playerScores.map(d => d.name))
+        .range([0, chartWidth])
+        .padding(0.1);
 
-  svg.append("g")
-      .call(d3.axisLeft(yScale));
+    const yScale = d3.scaleLinear()
+        .domain([0, d3.max(playerScores, d => d.score)]) // Scale based on max score
+        .range([chartHeight, 0]);
 
-  // Bars
-  svg.selectAll(".bar")
-      .data(playerScores)
-      .enter()
-      .append("rect")
-      .attr("class", "bar")
-      .attr("x", d => xScale(d.name))
-      .attr("y", d => yScale(d.score))
-      .attr("width", xScale.bandwidth())
-      .attr("height", d => chartHeight - yScale(d.score))
-      .attr("fill", d => d.name === selectedPlayerName ? "orange" : "steelblue") // Highlight selected player
-      .on("mouseover", function (event, d) {
-        tooltip.style("display", "block")
-            .html(`<strong>${d.name}</strong><br>Rating: ${d.score.toFixed(2)}`);
-        d3.select(this).attr("fill", "darkblue"); // Highlight bar
-    })
-    .on("mousemove", function (event) {
-        tooltip.style("left", (event.pageX + 10) + "px")
-            .style("top", (event.pageY - 20) + "px");
-    })
-    .on("mouseout", function (event, d) {
-        tooltip.style("display", "none");
-        d3.select(this).attr("fill", d.name === selectedPlayerName ? "orange" : "steelblue"); // Reset color
-    });
+    // Axes
+    svg.append("g")
+        .attr("transform", `translate(0,${chartHeight})`)
+        .call(d3.axisBottom(xScale))
+        .selectAll("text")
+        .attr("transform", "rotate(-45)")
+        .style("text-anchor", "end");
+
+    svg.append("g").call(d3.axisLeft(yScale));
+
+    // Bind Data
+    const bars = svg.selectAll(".bar")
+        .data(playerScores, d => d.name); // Key bars by player name
+
+    // Enter Bars (for new data points)
+    const enteredBars = bars.enter()
+        .append("rect")
+        .attr("class", "bar")
+        .attr("x", d => xScale(d.name))
+        .attr("y", chartHeight) // Start from the bottom of the chart
+        .attr("width", xScale.bandwidth())
+        .attr("height", 0) // Initial height is 0
+        .attr("fill", d => d.name === selectedPlayerName ? "orange" : "steelblue");
+
+    // Add Tooltip Event Listeners to Enter Selection
+    enteredBars
+        .on("mouseover", function (event, d) {
+            tooltip.style("display", "block")
+                .html(`<strong>${d.name}</strong><br>Rating: ${d.score.toFixed(2)}`);
+            d3.select(this).attr("fill", "darkblue"); // Highlight bar
+        })
+        .on("mousemove", function (event) {
+            tooltip.style("left", (event.pageX + 10) + "px")
+                .style("top", (event.pageY - 20) + "px");
+        })
+        .on("mouseout", function (event, d) {
+            tooltip.style("display", "none");
+            d3.select(this).attr("fill", d.name === selectedPlayerName ? "orange" : "steelblue"); // Reset color
+        });
+
+    // Merge Enter and Update Selections
+    enteredBars.merge(bars)
+        .transition() // Apply transition
+        .duration(1000) // 1-second duration
+        .attr("y", d => yScale(d.score)) // Move to final position based on score
+        .attr("height", d => chartHeight - yScale(d.score)); // Set final height based on score
+
+    // Exit Bars (for removed data points)
+    bars.exit()
+        .transition()
+        .duration(1000)
+        .attr("y", chartHeight) // Animate to the bottom
+        .attr("height", 0) // Shrink height to zero
+        .remove();
+
+    // Add Legend
+    const legend = barChart.append("g")
+        .attr("transform", `translate(${margin.left + 500}, ${height - margin.bottom - 850})`);
+
+    legend.append("rect")
+        .attr("x", 0)
+        .attr("y", 0)
+        .attr("width", 20)
+        .attr("height", 20)
+        .attr("fill", "orange");
+
+    legend.append("text")
+        .attr("x", 30)
+        .attr("y", 15)
+        .text("Selected Player")
+        .style("font-size", "14px")
+        .attr("alignment-baseline", "middle");
 }
 
 function calculateScoresForAllPlayers(players, weights) {
