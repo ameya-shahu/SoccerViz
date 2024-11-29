@@ -1,3 +1,4 @@
+from collections import defaultdict
 import json
 import math
 import numpy as np
@@ -614,6 +615,8 @@ def calculate_passes_until_shot_pass(events, event_data):
     pass_ratings = {}
     shot_found = False
     passes_since_last_shot = 0
+
+    eventwise_pass_until_shot  = []
     
     # # Sort events by timestamp if available
     # events = sorted(events, key=lambda x: x.get('timestamp', 0), reverse=True)
@@ -628,20 +631,33 @@ def calculate_passes_until_shot_pass(events, event_data):
             if shot_found:
                 rating = max(10 - passes_since_last_shot, 0)
                 pass_ratings[event['id']] = rating
+                eventwise_pass_until_shot.append({
+                    "event_id": event["id"],
+                    "pass_until_shot": rating,
+                    'player_id': event["player"]["id"]
+                })
                 passes_since_last_shot += 1
             else:
                 pass_ratings[event['id']] = 0
+                eventwise_pass_until_shot.append({
+                    "event_id": event["id"],
+                    "pass_until_shot": 0,
+                    'player_id': event["player"]["id"]
+                })
         
         if passes_since_last_shot >= 10:
             shot_found = False
 
-    return pass_ratings
+    return pass_ratings, eventwise_pass_until_shot
 
 # FUNCTION TO CALCULATE PASSES UNTIL SHOT
 def calculate_passes_until_shot_duel(events, event_data):
     pass_ratings = {}
     shot_found = False
     passes_since_last_shot = 0
+    eventwise_pass_until_shot = []
+
+    
     
     # # Sort events by timestamp if available
     # events = sorted(events, key=lambda x: x.get('timestamp', 0), reverse=True)
@@ -657,13 +673,23 @@ def calculate_passes_until_shot_duel(events, event_data):
                 rating = max(10 - passes_since_last_shot, 0)
                 pass_ratings[event['id']] = rating
                 passes_since_last_shot += 1
+                eventwise_pass_until_shot.append({
+                    "event_id": event["id"],
+                    "pass_until_shot": rating,
+                    'player_id': event["player"]["id"]
+                })
             else:
                 pass_ratings[event['id']] = 0
+                eventwise_pass_until_shot.append({
+                    "event_id": event["id"],
+                    "pass_until_shot": 0,
+                    'player_id': event["player"]["id"]
+                })
         
         if passes_since_last_shot >= 10:
             shot_found = False
 
-    return pass_ratings
+    return pass_ratings, eventwise_pass_until_shot
 
 def calculate_pass_success(pass_length, packing_value, area_rating, pressure_sum, 
                             beta_1, beta_2, beta_3, beta_4):
@@ -706,7 +732,7 @@ def calculate_metrics_for_player(player_data, event_data, player_positions_data,
             player_data['duel_area_ratings'].append(area_score)
 
             eventwise_area_score.append({
-                "event_id": pass_event["id"],
+                "event_id": duel_event["id"],
                 "area_score": area_score,
                 'player_id': player_id
             })
@@ -726,7 +752,7 @@ def calculate_metrics_for_player(player_data, event_data, player_positions_data,
     all_match_events.sort(key=lambda x: x.get('timestamp', 0))
     
     # Calculate passes until shot using all events
-    pass_ratings_pass = calculate_passes_until_shot_pass(all_match_events, event_data)
+    pass_ratings_pass, eventwise_pass_until_shot = calculate_passes_until_shot_pass(all_match_events, event_data)
     
     # Only store ratings for this player's passes
     for pass_event in player_data['passes']:
@@ -734,7 +760,7 @@ def calculate_metrics_for_player(player_data, event_data, player_positions_data,
             player_data['passes_until_shot_pass'].append(pass_ratings_pass[pass_event['id']])
 
     # Calculate passes until shot using all events
-    pass_ratings_duels = calculate_passes_until_shot_duel(all_match_events, event_data)
+    pass_ratings_duels, eventwise_pass_until_shot_duel = calculate_passes_until_shot_duel(all_match_events, event_data)
     
     # Only store ratings for this player's passes
     for pass_event in player_data['duels']:
@@ -749,6 +775,8 @@ def calculate_metrics_for_player(player_data, event_data, player_positions_data,
     #player_data['avg_duel_area_rating'] = np.mean(player_data['duel_area_ratings']) if player_data['duel_area_ratings'] else 0
     player_data['avg_shot_accuracy'] = np.mean(player_data['shot_accuracy_ratings']) if player_data['shot_accuracy_ratings'] else 0
     player_data['avg_expected_goals'] = np.mean(player_data['expected_goal_ratings']) if player_data['expected_goal_ratings'] else 0
+
+    return eventwise_area_score, eventwise_pass_until_shot, eventwise_pass_until_shot_duel
 
 def scale_area_rating():
     overall_area_ratings = []
@@ -817,125 +845,237 @@ def scale_packing():
         player_data['avg_packing'] = np.mean(player_data['packing_values']) if player_data['packing_values'] else 0
 
 
+def scale_eventwise_values(data, dataKeys, valKeys):
+    arr = data[dataKeys]
+    arr_values = [obj[valKeys] for obj in arr]
+    elbow_point = find_elbow_point(arr_values)
+    max_value = max(arr_values)
+    arr = [
+        {**obj, f'{valKeys}': scale_value(obj[valKeys], elbow_point, max_value)}
+        for obj in arr
+    ]
+
+    return arr
+
+
+def eventwise_datascaling(data):
+    data["eventwise_area_score"] = scale_eventwise_values(data, "eventwise_area_score", "area_score")
+    data["eventwise_pressure_rating"] = scale_eventwise_values(data, "eventwise_pressure_rating" ,"pressure_rating")
+    return data
+    
+    
+def load_tournament_data(url):
+    try:
+        # Fetch events data from the URL
+        events_response = requests.get(url)
+        events_response.raise_for_status()  # Raise an exception for HTTP errors
+        events = events_response.json()
+    
+        
+        return events
+    
+    except requests.exceptions.RequestException as e:
+        #print(f"Error fetching data from URL: {e}")
+        return None
+    except json.JSONDecodeError as e:
+        #print(f"Error decoding JSON: {e}")
+        return None
+
+
+
 if __name__ == "__main__":
     # Main script
     # match_id = "3788741"
-    match_id = "3857254"
+    # match_id = "3857254"
     competition_id = "43"
     seasor_id = "106"
-    
 
-    events, threesixty = load_data(
-        events_url=f'https://raw.githubusercontent.com/ameya-shahu/dv-project-filtered-data/refs/heads/main/competitions/{competition_id}/{seasor_id}/matches/{match_id}.json',
-        threesixty_url=f'https://raw.githubusercontent.com/ameya-shahu/dv-project-filtered-data/refs/heads/main/competitions/{competition_id}/{seasor_id}/three-sixty/{match_id}.json'
-    )
+    output_directory = f"./Data/{competition_id}/{seasor_id}"
+    os.makedirs(output_directory, exist_ok=True)
 
-    if events and threesixty:
-        player_pressure_pass, eventwise_pressure_rating = calculate_overall_pressure_by_player(events, threesixty,'Pass')
-        player_pressures_pass = {player['player_id']: player['total_pressure'] for player in player_pressure_pass.values()}
-        rescaled_pressures_pass = rescale_pressures(player_pressures_pass)
 
-        player_pressure_duel, eventwise_duel_pressure_rating = calculate_overall_pressure_by_player(events, threesixty,'Duel')
-        player_pressures_duels = {player['player_id']: player['total_pressure'] for player in player_pressure_duel.values()}
-        rescaled_pressures_duels = rescale_pressures(player_pressures_duels)
+    torunament_data = load_tournament_data(f'https://raw.githubusercontent.com/ameya-shahu/dv-project-filtered-data/refs/heads/main/competitions/{competition_id}/{seasor_id}/{seasor_id}.json')
+    matches = []
+    for tdata in torunament_data:
+        match_id = tdata["match_id"]  
+        matches.append({
+            "match_id": match_id,
+            "home_team": tdata["home_team"]["home_team_name"],
+            "home_team_id": tdata["home_team"]["home_team_id"],
+            "away_team": tdata["away_team"]["away_team_name"],
+            "away_team_id": tdata["away_team"]["away_team_id"]
+        })
+        events, threesixty = load_data(
+            events_url=f'https://raw.githubusercontent.com/ameya-shahu/dv-project-filtered-data/refs/heads/main/competitions/{competition_id}/{seasor_id}/matches/{match_id}.json',
+            threesixty_url=f'https://raw.githubusercontent.com/ameya-shahu/dv-project-filtered-data/refs/heads/main/competitions/{competition_id}/{seasor_id}/three-sixty/{match_id}.json'
+        )
 
-        player_pressure_shot, eventwise_shot_pressure_rating = calculate_overall_pressure_by_player(events, threesixty,'Shot')
-        player_pressures_shots = {player['player_id']: player['total_pressure'] for player in player_pressure_shot.values()}
-        rescaled_pressures_shots = rescale_pressures(player_pressures_shots)
+        if events and threesixty:
+            player_pressure_pass, eventwise_pressure_rating = calculate_overall_pressure_by_player(events, threesixty,'Pass')
+            player_pressures_pass = {player['player_id']: player['total_pressure'] for player in player_pressure_pass.values()}
+            rescaled_pressures_pass = rescale_pressures(player_pressures_pass)
 
-        all_match_stats = {}
-        # #print("Total Pressures :", player_pressure)
-        # #print("Rescaled Pressures (0-10 scale):", rescaled_pressures)
-        rescaled_pressure_with_player_name_pass = {}
-        rescaled_pressure_with_player_name_duel = {}
-        rescaled_pressure_with_player_name_shot = {}
+            player_pressure_duel, eventwise_duel_pressure_rating = calculate_overall_pressure_by_player(events, threesixty,'Duel')
+            player_pressures_duels = {player['player_id']: player['total_pressure'] for player in player_pressure_duel.values()}
+            rescaled_pressures_duels = rescale_pressures(player_pressures_duels)
 
-        # Iterate through the Total Pressures to match player names with rescaled pressures
-        for player_name, player_data in player_pressure_pass.items():
-            player_id = player_data['player_id']
-            if player_id in rescaled_pressures_pass:
-                # Add player name along with the corresponding rescaled pressure
-                rescaled_pressure_with_player_name_pass[player_name] = {
-                    'player_id': player_id,
-                    'rescaled_pressure': round(rescaled_pressures_pass[player_id], 2)
-                }
-        for player_name, player_data in player_pressure_duel.items():
-            player_id = player_data['player_id']
-            if player_id in rescaled_pressures_duels:
-                # Add player name along with the corresponding rescaled pressure
-                rescaled_pressure_with_player_name_duel[player_name] = {
-                    'player_id': player_id,
-                    'rescaled_pressure': round(rescaled_pressures_duels[player_id], 2)
-                }
-        for player_name, player_data in player_pressure_shot.items():
-            player_id = player_data['player_id']
-            if player_id in rescaled_pressures_shots:
-                # Add player name along with the corresponding rescaled pressure
-                rescaled_pressure_with_player_name_shot[player_name] = {
-                    'player_id': player_id,
-                    'rescaled_pressure': round(rescaled_pressures_shots[player_id], 2)
-                }
-        overplayed_pressure, eventwise_pressure_change = calculate_pressure_change_by_player(events,threesixty,'Pass')
-        # #print(rescaled_pressure_with_player_name)
-        
+            player_pressure_shot, eventwise_shot_pressure_rating = calculate_overall_pressure_by_player(events, threesixty,'Shot')
+            player_pressures_shots = {player['player_id']: player['total_pressure'] for player in player_pressure_shot.values()}
+            rescaled_pressures_shots = rescale_pressures(player_pressures_shots)
+
+            all_match_stats = {}
+            # #print("Total Pressures :", player_pressure)
+            # #print("Rescaled Pressures (0-10 scale):", rescaled_pressures)
+            rescaled_pressure_with_player_name_pass = {}
+            rescaled_pressure_with_player_name_duel = {}
+            rescaled_pressure_with_player_name_shot = {}
+
+            # Iterate through the Total Pressures to match player names with rescaled pressures
+            for player_name, player_data in player_pressure_pass.items():
+                player_id = player_data['player_id']
+                if player_id in rescaled_pressures_pass:
+                    # Add player name along with the corresponding rescaled pressure
+                    rescaled_pressure_with_player_name_pass[player_name] = {
+                        'player_id': player_id,
+                        'rescaled_pressure': round(rescaled_pressures_pass[player_id], 2)
+                    }
+            for player_name, player_data in player_pressure_duel.items():
+                player_id = player_data['player_id']
+                if player_id in rescaled_pressures_duels:
+                    # Add player name along with the corresponding rescaled pressure
+                    rescaled_pressure_with_player_name_duel[player_name] = {
+                        'player_id': player_id,
+                        'rescaled_pressure': round(rescaled_pressures_duels[player_id], 2)
+                    }
+            for player_name, player_data in player_pressure_shot.items():
+                player_id = player_data['player_id']
+                if player_id in rescaled_pressures_shots:
+                    # Add player name along with the corresponding rescaled pressure
+                    rescaled_pressure_with_player_name_shot[player_name] = {
+                        'player_id': player_id,
+                        'rescaled_pressure': round(rescaled_pressures_shots[player_id], 2)
+                    }
+            overplayed_pressure, eventwise_pressure_change = calculate_pressure_change_by_player(events,threesixty,'Pass')
+            # #print(rescaled_pressure_with_player_name)
             
-            # Organize data and get event_data once
-        player_stats, event_data = organize_data_by_match_and_player(match_id, events, threesixty)
+                
+                # Organize data and get event_data once
+            player_stats, event_data = organize_data_by_match_and_player(match_id, events, threesixty)
+                
+                # Calculate metrics for each player
+            match_stats = {}
+            eventwise_area_score = []
+            eventwise_pass_until_shot = []
+            eventwise_pass_until_shot_duel = []
+
+            for player_id, player_data in player_stats[match_id].items():
+                eventwise_area_score_pl, eventwise_pass_until_shot, eventwise_pass_until_shot_duel = calculate_metrics_for_player(player_data, event_data, threesixty, player_id)
+                eventwise_area_score += eventwise_area_score_pl
             
-            # Calculate metrics for each player
-        match_stats = {}
-        for player_id, player_data in player_stats[match_id].items():
-            calculate_metrics_for_player(player_data, event_data, threesixty, player_id)
-        
-        scale_area_rating()
-        scale_packing()
+            scale_area_rating()
+            scale_packing()
 
-        for player_id, player_data in player_stats[match_id].items():
-            player_name = player_data['name']
-            rescaled_pressure_pass = rescaled_pressure_with_player_name_pass.get(player_name, {}).get('rescaled_pressure', 0)
-            rescaled_pressure_duel = rescaled_pressure_with_player_name_duel.get(player_name, {}).get('rescaled_pressure', 0)
-            rescaled_pressure_shot = rescaled_pressure_with_player_name_shot.get(player_name, {}).get('rescaled_pressure', 0)
-            expected_pass_success = calculate_pass_success(player_data['avg_passes_until_shot_pass'], player_data['avg_packing'],
-                                                        player_data['avg_area_rating'], rescaled_pressure_pass, 
-                            -0.0450, -0.1856, -0.9534, -0.1486)
-            expected_duel_success = calculate_duel_success_probability(rescaled_pressure_duel, player_data['avg_duel_area_rating'])
-                # Store individual stats in a more structured way
-            match_stats[player_data['name']] = {
-                    'player_id': player_id,
-                    'avg_packing': player_data['avg_packing'],
-                    'avg_passes_until_shot_pass': player_data['avg_passes_until_shot_pass'],
-                    'avg_passes_until_shot_duel': player_data['avg_passes_until_shot_duel'],
-                    'avg_area_rating': player_data['avg_area_rating'],
-                    'total_passes': len(player_data['passes']),
-                    'total_duels': len(player_data['duels']),
-                    'total_shots': len(player_data['shots']),
-                    'avg_duel_area_rating': player_data['avg_duel_area_rating'],
-                    'avg_shot_accuracy': player_data['avg_shot_accuracy'],
-                    'avg_pressure_pass': rescaled_pressure_pass,
-                    'overplayed_pressure': overplayed_pressure.get(player_name,{}).get('rescaled_pressure_change',0),
-                    'avg_pressure_duel': rescaled_pressure_duel,
-                    'avg_pressure_shot': rescaled_pressure_shot,
-                    'expected_pass_success': expected_pass_success,
-                    'expected_duel_success' : expected_duel_success,
-                    'expected_goal_success': player_data['avg_expected_goals']
-                }
-        
-        # #print(match_stats)
-        output_directory = "Data"
-        os.makedirs(output_directory, exist_ok=True)
-        output_file_path = os.path.join(output_directory, f"match_stats_{match_id}.csv")
-        with open(output_file_path, mode="w", newline="", encoding='utf-8') as csv_file:
-            writer = csv.writer(csv_file)
-            # Write the header (keys of the first dictionary entry)
-            headers = ["player_name"] + list(next(iter(match_stats.values())).keys())
-            writer.writerow(headers)
+            eventWiseData = {
+                "eventwise_area_score" : eventwise_area_score,
+                "eventwise_pass_until_shot": eventwise_pass_until_shot + eventwise_pass_until_shot_duel,
+                "eventwise_pressure_change": eventwise_pressure_change,
+                "eventwise_pressure_rating": eventwise_pressure_rating + eventwise_shot_pressure_rating + eventwise_duel_pressure_rating
+            }
+
+            # print(eventWiseData)
+
             
-            # Write the rows (player name and their stats)
-            for player_name, stats in match_stats.items():
-                row = [player_name] + list(stats.values())
-                writer.writerow(row)
+            final_eventwise_data = eventwise_datascaling(eventWiseData)
 
-        print(f"File saved at: {output_file_path}")
-        print(f'length of stats:{len(match_stats)}')
-        #print("---")
+            merged_data = defaultdict(dict)
+            
+            for array in final_eventwise_data.values():
+                for obj in array:
+                    event_key = obj["event_id"]
+                    merged_data[event_key].update(obj)
 
+                
+            merged_list = list(merged_data.values())
+
+            for item in merged_list:
+                matching_events = [event for event in events if event['id'] == item['event_id']]
+                for event in matching_events:
+                    event_type = event['type']['name']
+
+                    # Add keys based on the type of event
+                    if event_type in ['Duel', 'Shot']:
+                        item['x_start'] = event['location'][0]
+                        item['y_start'] = event['location'][1]
+                        item['x_end'] = event['location'][0]
+                        item['y_end'] = event['location'][1]
+                    elif event_type == 'Pass':
+                        item['x_start'] = event['location'][0]
+                        item['y_start'] = event['location'][1]
+                        item['x_end'] = event["pass"]['end_location'][0]
+                        item['y_end'] = event["pass"]['end_location'][1]
+
+                    # Copy timestamp
+                    item['timestamp'] = event['timestamp']
+
+             # #print(match_stats)
+            
+
+            output_file_path = os.path.join(output_directory, f"pcp_{match_id}.json")
+
+            with open(output_file_path, "w") as json_file:
+                json.dump(merged_list, json_file, indent=4)
+
+            #print(final_eventwise_data)
+
+            for player_id, player_data in player_stats[match_id].items():
+                player_name = player_data['name']
+                rescaled_pressure_pass = rescaled_pressure_with_player_name_pass.get(player_name, {}).get('rescaled_pressure', 0)
+                rescaled_pressure_duel = rescaled_pressure_with_player_name_duel.get(player_name, {}).get('rescaled_pressure', 0)
+                rescaled_pressure_shot = rescaled_pressure_with_player_name_shot.get(player_name, {}).get('rescaled_pressure', 0)
+                expected_pass_success = calculate_pass_success(player_data['avg_passes_until_shot_pass'], player_data['avg_packing'],
+                                                            player_data['avg_area_rating'], rescaled_pressure_pass, 
+                                -0.0450, -0.1856, -0.9534, -0.1486)
+                expected_duel_success = calculate_duel_success_probability(rescaled_pressure_duel, player_data['avg_duel_area_rating'])
+                    # Store individual stats in a more structured way
+                match_stats[player_data['name']] = {
+                        'player_id': player_id,
+                        'avg_packing': player_data['avg_packing'],
+                        'avg_passes_until_shot_pass': player_data['avg_passes_until_shot_pass'],
+                        'avg_passes_until_shot_duel': player_data['avg_passes_until_shot_duel'],
+                        'avg_area_rating': player_data['avg_area_rating'],
+                        'total_passes': len(player_data['passes']),
+                        'total_duels': len(player_data['duels']),
+                        'total_shots': len(player_data['shots']),
+                        'avg_duel_area_rating': player_data['avg_duel_area_rating'],
+                        'avg_shot_accuracy': player_data['avg_shot_accuracy'],
+                        'avg_pressure_pass': rescaled_pressure_pass,
+                        'overplayed_pressure': overplayed_pressure.get(player_name,{}).get('rescaled_pressure_change',0),
+                        'avg_pressure_duel': rescaled_pressure_duel,
+                        'avg_pressure_shot': rescaled_pressure_shot,
+                        'expected_pass_success': expected_pass_success,
+                        'expected_duel_success' : expected_duel_success,
+                        'expected_goal_success': player_data['avg_expected_goals']
+                    }
+            
+           
+            output_file_path = os.path.join(output_directory, f"match_stats_{match_id}.csv")
+            with open(output_file_path, mode="w", newline="", encoding='utf-8') as csv_file:
+                writer = csv.writer(csv_file)
+                # Write the header (keys of the first dictionary entry)
+                headers = ["player_name"] + list(next(iter(match_stats.values())).keys())
+                writer.writerow(headers)
+                
+                # Write the rows (player name and their stats)
+                for player_name, stats in match_stats.items():
+                    row = [player_name] + list(stats.values())
+                    writer.writerow(row)
+
+            print(f"File saved at: {output_file_path}")
+            print(f'length of stats:{len(match_stats)}')
+            #print("---")
+
+
+    output_file_path = os.path.join(output_directory, f"01_matches_info.json")
+
+    with open(output_file_path, "w") as json_file:
+        json.dump(matches, json_file, indent=4)
