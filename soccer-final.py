@@ -887,8 +887,8 @@ if __name__ == "__main__":
     # Main script
     # match_id = "3788741"
     # match_id = "3857254"
-    competition_id = "43"
-    seasor_id = "106"
+    competition_id = "72"
+    seasor_id = "107"
 
     output_directory = f"./Data/{competition_id}/{seasor_id}"
     os.makedirs(output_directory, exist_ok=True)
