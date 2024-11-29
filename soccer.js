@@ -218,7 +218,7 @@ function drawRadarChart(data, selector) {
 
   // Create a line generator to connect the data points
   const line = d3.lineRadial()
-    .radius(d => Math.min(radialScale(d.value * d.weight), radius)) // Ensure that radius does not exceed the chart's boundary
+    .radius(d => Math.min(radialScale(d.weight), radius)) // Ensure that radius does not exceed the chart's boundary
     .angle((d, i) => angleSlice * i);
 
   // Draw the radar polygon (only connecting data points)
@@ -236,8 +236,8 @@ function drawRadarChart(data, selector) {
     .data(data)
     .enter().append("circle")
     .attr("class", "radarPoint")
-    .attr("cx", (d, i) => Math.min(radialScale(d.value * d.weight), radius) * Math.cos(angleSlice * i - Math.PI / 2)) // Clip to the radius
-    .attr("cy", (d, i) => Math.min(radialScale(d.value * d.weight), radius) * Math.sin(angleSlice * i - Math.PI / 2)) // Clip to the radius
+    .attr("cx", (d, i) => Math.min(radialScale( d.weight), radius) * Math.cos(angleSlice * i - Math.PI / 2)) // Clip to the radius
+    .attr("cy", (d, i) => Math.min(radialScale(d.weight), radius) * Math.sin(angleSlice * i - Math.PI / 2)) // Clip to the radius
     .attr("r", 4)
     .style("fill", "#0080ff")
     .style("stroke", "white")
