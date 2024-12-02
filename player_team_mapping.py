@@ -29,8 +29,8 @@ if __name__ == "__main__":
     # Main script
     # match_id = "3788741"
     # match_id = "3857254"
-    competition_id = "43"
-    seasor_id = "106"
+    competition_id = "72"
+    seasor_id = "107"
 
     output_directory = f"./Data/{competition_id}/{seasor_id}/player_mapping"
     os.makedirs(output_directory, exist_ok=True)
@@ -53,10 +53,11 @@ for tdata in torunament_data:
         if matching_event:
             team_name = matching_event.get("possession_team", {}).get("name", None)
             if team_name:
-                # Add player ID to the appropriate team in the dictionary
-                if team_name not in player_teams:
-                    player_teams[team_name] = []
-                player_teams[team_name].append(player_id)
+                # Map player_id to the corresponding team name
+                player_teams[player_id] = team_name
+        else:
+            # If no matching event is found, set team as None
+            player_teams[player_id] = None
 
     output_file = os.path.join(output_directory, f"player_mapping_{match_id}.json")
     with open(output_file, 'w') as json_file:
