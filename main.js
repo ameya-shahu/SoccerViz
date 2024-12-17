@@ -242,16 +242,16 @@ function loadPlayerDataForMatch(matchId) {
 
   Promise.all([
     d3.csv(
-      `https://raw.githubusercontent.com/aprajitabhowal/SoccerViz/refs/heads/main/Data/${competitionId}/${seasonId}/match_stats_${matchId}.csv`
+      `https://raw.githubusercontent.com/ameya-shahu/SoccerViz/refs/heads/main/Data/${competitionId}/${seasonId}/match_stats_${matchId}.csv`
     ),
     fetch(
-      `https://raw.githubusercontent.com/aprajitabhowal/SoccerViz/refs/heads/main/Data/${competitionId}/${seasonId}/pcp_${matchId}.json`
+      `https://raw.githubusercontent.com/ameya-shahu/SoccerViz/refs/heads/main/Data/${competitionId}/${seasonId}/pcp_${matchId}.json`
     ).then((res) => res.json()),
     fetch(
-      `https://raw.githubusercontent.com/aprajitabhowal/SoccerViz/refs/heads/main/Data/${competitionId}/${seasonId}/player_mapping/player_mapping_${matchId}.json`
+      `https://raw.githubusercontent.com/ameya-shahu/SoccerViz/refs/heads/main/Data/${competitionId}/${seasonId}/player_mapping/player_mapping_${matchId}.json`
     ).then((res) => res.json()),
     d3.csv(
-      `https://raw.githubusercontent.com/aprajitabhowal/SoccerViz/refs/heads/main/Data/${competitionId}/${seasonId}/match_${matchId}_positions.csv`
+      `https://raw.githubusercontent.com/ameya-shahu/SoccerViz/refs/heads/main/Data/${competitionId}/${seasonId}/match_${matchId}_positions.csv`
     ),
   ])
     .then(([csvData, pcpData, playerTeamMapping, positionsData]) => {
