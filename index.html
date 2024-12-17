@@ -1,98 +1,213 @@
 <!DOCTYPE html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Soccer Analytics Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link
+      rel="stylesheet"
+      href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+  </head>
+  <body>
+    <div class="dashboard" style="display: none">
+      <div id="loading" style="display: none">Loading...</div>
+      <header class="sticky-top" style="display: flex">
+        <h1>Soccer Analytics Dashboard</h1>
+        <div class="controls">
+          <div class="selection-controls">
+            <select id="matchSelect" disabled>
+              <option value="">Select Match</option>
+            </select>
+            <select id="playerSelect" disabled>
+              <option value="">Select Player</option>
+            </select>
+          </div>
+        </div>
+      </header>
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Radar Charts with Dynamic Players and Matches</title>
-  <link rel="stylesheet" href="soccer.css">
-</head>
+      <div class="radar-charts">
+        <div class="chart-wrapper">
+          <div>
+            <h3>Passing Analysis</h3>
+            <div id="playerStats">
+              <p><strong>Packing:</strong> <span id="packing-value"></span></p>
+              <p>
+                <strong>Pressure:</strong> <span id="pressure-value"></span>
+              </p>
+              <p>
+                <strong>Expected Pass Success:</strong>
+                <span id="expected-pass-value"></span>
+              </p>
+              <p>
+                <strong>Passes Until Shot:</strong>
+                <span id="passes-until-shot-value-pass"></span>
+              </p>
+              <p>
+                <strong>Overplayed Pressure:</strong>
+                <span id="overplayed-pressure-value"></span>
+              </p>
+              <p><strong>Area rating:</strong> <span id="area-value"></span></p>
+            </div>
+          </div>
+          <div id="weightControls1"></div>
+          <!-- This will hold the weight buttons -->
+          <div id="Pass-Rating"></div>
+          <!-- This will display the overall score -->
+          <div class="chart-container" id="chart1"></div>
+        </div>
 
-<body>
-  <h1>Radar Charts for Football Players</h1>
+        <div class="chart-wrapper">
+          <div>
+            <h3>Duels Analysis</h3>
+            <div id="playerStats">
+              <p>
+                <strong>Pressure:</strong>
+                <span id="pressure-value-duel"></span>
+              </p>
+              <p>
+                <strong>Expected Duel Success:</strong>
+                <span id="expected-duel-value"></span>
+              </p>
+              <p>
+                <strong>Passes Until Shot:</strong>
+                <span id="passes-until-shot-value-duel"></span>
+              </p>
+              <p>
+                <strong>Area rating:</strong> <span id="area-value-duel"></span>
+              </p>
+            </div>
+          </div>
+          <div id="weightControls2"></div>
+          <!-- This will hold the weight buttons -->
+          <div id="Duel-Rating"></div>
+          <!-- This will display the overall score -->
+          <div class="chart-container" id="chart2"></div>
+        </div>
 
-  <!-- Match Selection -->
-  <div class="controls">
-    <label for="matchSelect">Select Match:</label>
-    <select id="matchSelect">
-      <option value="3942752">Hungary vs Poland</option>
-      <option value="3942752">Spain vs Italy</option>
-      <option value="3942752">England vs France</option>
-    </select>
-  </div>
+        <div class="chart-wrapper">
+          <div>
+            <h3>Shooting Analysis</h3>
+            <div id="playerStats">
+              <p>
+                <strong>Accuracy:</strong> <span id="accuracy-value"></span>
+              </p>
+              <p>
+                <strong>Pressure:</strong>
+                <span id="pressure-value-shot"></span>
+              </p>
+              <p>
+                <strong>Expected Goals:</strong>
+                <span id="expected-goal-value"></span>
+              </p>
+            </div>
+          </div>
+          <div id="weightControls3"></div>
+          <!-- This will hold the weight buttons -->
+          <div id="Shot-Rating"></div>
+          <!-- This will display the overall score -->
+          <div class="chart-container" id="chart3"></div>
+        </div>
 
-  <!-- Player Selection based on selected match -->
-  <div class="controls">
-    <label for="playerSelect">Select Player:</label>
-    <select id="playerSelect">
-      <!-- Player names will be dynamically populated here -->
-    </select>
-  </div>
-
-  <!-- Radar Charts Container -->
-  <div class="chart-container">
-    <div class="chart-wrapper" id="chart1-container">
-      <div id="playerStats">
-        <p><strong>Packing:</strong> <span id="packing-value"></span></p>
-        <p><strong>Pressure:</strong> <span id="pressure-value"></span></p>
-        <p><strong>Expected Pass Success:</strong> <span id="expected-pass-value"></span></p>
-        <p><strong>Passes Until Shot:</strong> <span id="passes-until-shot-value-pass"></span></p>
-        <p><strong>Overplayed Pressure:</strong> <span id="overplayed-pressure-value"></span></p>
-        <p><strong>Area rating:</strong> <span id="area-value"></span></p>
+        <div class="chart-wrapper">
+          <div>
+            <h3>Overall Performance</h3>
+            <div id="playerStats" class="chart4-text">
+              <p>
+                <strong>Player Name:</strong> <span id="player-value"></span>
+              </p>
+              <p><strong>Match:</strong> <span id="match-value"></span></p>
+              <p><strong>Pass Rating:</strong> <span id="pass-value"></span></p>
+              <p><strong>Duel Rating:</strong> <span id="duel-value"></span></p>
+              <p><strong>Shot Rating:</strong> <span id="shot-value"></span></p>
+              <!-- <p><strong>Overall Rating:</strong> <span id="overall-value"></span></p> -->
+            </div>
+          </div>
+          <div id="Overall-Rating"></div>
+          <div id="weightControls4"></div>
+          <div id="chart4"></div>
+        </div>
       </div>
-      <svg id="chart1" width="300" height="300"></svg>
-      <div id="weightControls1"></div> <!-- This will hold the weight buttons -->
-      <div id="Pass-Rating"></div> <!-- This will display the overall score -->
-    </div>
 
-    <div class="chart-wrapper" id="chart2-container">
-      <div id="playerStats">
-        <p><strong>Pressure:</strong> <span id="pressure-value-duel"></span></p>
-        <p><strong>Expected Duel Success:</strong> <span id="expected-duel-value"></span></p>
-        <p><strong>Passes Until Shot:</strong> <span id="passes-until-shot-value-duel"></span></p>
-        <p><strong>Area rating:</strong> <span id="area-value-duel"></span></p>
+      <!-- Player Comparison -->
+      <div class="chart-wrapper">
+        <h3>Player Comparison</h3>
+        <div id="barChart"></div>
+        <div id="tooltip"></div>
       </div>
-      <svg id="chart2" width="300" height="300"></svg>
-      <div id="weightControls2"></div> <!-- This will hold the weight buttons -->
-      <div id="Duel-Rating"></div> <!-- This will display the overall score -->
-    </div>
 
-    <div class="chart-wrapper" id="chart3-container">
-      <div id="playerStats">
-        <p><strong>Accuracy:</strong> <span id="accuracy-value"></span></p>
-        <p><strong>Pressure:</strong> <span id="pressure-value-shot"></span></p>
-        <p><strong>Expected Goals:</strong> <span id="expected-goal-value"></span></p>
+      <!-- PCP Chart -->
+      <div class="chart-wrapper" style="margin-top: 20px">
+        <h3>Player Parallel Coordinates</h3>
+        <div id="controls" class="toggle-container"></div>
+        <div id="parallelCoordinates"></div>
       </div>
-      <svg id="chart3" width="300" height="300"></svg>
-      <div id="weightControls3"></div> <!-- This will hold the weight buttons -->
-      <div id="Shot-Rating"></div> <!-- This will display the overall score -->
-    </div>
-    <div class="chart-wrapper" id="chart4-container">
-      <div id="playerStats4" class="chart4-text">
-        <p><strong>Player Name:</strong> <span id="player-value"></span></p>
-        <p><strong>Match:</strong> <span id="match-value"></span></p>
-        <p><strong>Pass Rating:</strong> <span id="pass-value"></span></p>
-        <p><strong>Duel Rating:</strong> <span id="duel-value"></span></p>
-        <p><strong>Shot Rating:</strong> <span id="shot-value"></span></p>
-        <!-- <p><strong>Overall Rating:</strong> <span id="overall-value"></span></p> -->
+
+      <!-- Heatmap -->
+      <div class="chart-wrapper" style="margin-top: 20px">
+        <h3>Heatmap</h3>
+        <div class="slider-container">
+          <label for="time-slider" class="slider-label">Match Timeline:</label>
+          <input
+            type="range"
+            id="time-slider"
+            min="0"
+            max="90"
+            value="90"
+            step="1"
+          />
+          <span id="time-display">90'</span>
+        </div>
+        <div id="main-container">
+          <div id="field-container">
+            <h3>Player Presence Heatmap</h3>
+            <svg id="pitch"></svg>
+          </div>
+          <div id="defense-container">
+            <h3>Defensive Pressure Heatmap</h3>
+            <svg id="defense-pitch"></svg>
+          </div>
+        </div>
       </div>
-      <div id="Overall-Rating"></div>
-      <svg id="chart4" width="500" height="500" class="chart4-svg"></svg>
-      <div id="weightControls4"></div>
+      <!-- Line Chart -->
+      <div class="chart-wrapper" style="margin-top: 20px">
+        <h3>Line Chart - Overall tournament Performance</h3>
+        <svg id="lineChart" width="1000" height="400"></svg>
+        <div id="lineChartTooltip" style="position: absolute; display: none; background: lightgray; padding: 5px; border-radius: 3px;"></div>
+      </div>
     </div>
-    <div class="chart-wrapper" id="bar-chart-container">
-      <h3>Player Ratings Comparison</h3>
-      <div id="tooltip"></div>
-      <svg id="barChart" width="600" height="400"></svg>
+
+    <div
+      class="modal fade"
+      id="cardModal"
+      tabindex="-1"
+      role="dialog"
+      aria-labelledby="cardModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="cardModalLabel">Select a Competiton</h5>
+          </div>
+          <div class="modal-body" id="init_modal"></div>
+        </div>
+      </div>
     </div>
-  </div>
-  
 
-  <!-- Overall Score Display
-  <div id="overall-score"></div> -->
-
-  <script src="https://d3js.org/d3.v7.min.js"></script>
-  <script src="soccer.js"></script>
-</body>
-
+    <script src="components/radarChart.js"></script>
+    <script src="components/barChart.js"></script>
+    <script src="components/pcpChart.js"></script>
+    <script src="components/heatmap.js"></script>
+    <script src="components/linechart.js"></script>
+    <script src="main.js"></script>
+  </body>
 </html>
